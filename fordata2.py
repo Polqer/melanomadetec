@@ -14,16 +14,32 @@ import time
 import gc
 from google.colab import drive
 
-from step_1 import *
+
+
+import torch
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
+drive.mount('/content/drive')
+# Пути к данным на Google Диске
+second_data_dir = '/content/drive/MyDrive/Dataset2'  # Путь ко второму набору данных
+fine_tuned_result_dir = '/content/drive/MyDrive/FineTuningResults'
+
+
+
+import torch
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 # Пути к данным на Google Диске
 second_data_dir = '/content/drive/MyDrive/Dataset2'  # Путь ко второму набору данных
 fine_tuned_result_dir = '/content/drive/MyDrive/FineTuningResults'
+
+# Гиперпараметры
 batch_size = 16
-num_epochs = 30  # Сокращаем количество эпох для fine-tuning
+num_epochs = 2  # Количество эпох для fine-tuning
 learning_rate = 0.00005
 
-# Преобразования для второго набора данных
+# Преобразования для данных
 data_transforms = {
     'train': transforms.Compose([
         transforms.RandomResizedCrop(224),
@@ -39,26 +55,33 @@ data_transforms = {
     ]),
 }
 
-# Подготовка второго набора данных
-def prepare_datasets(data_dir, val_split=0.15, test_split=0.15):
-    dataset = datasets.ImageFolder(data_dir, transform=data_transforms['train'])
-    train_size = int((1 - val_split - test_split) * len(dataset))
-    val_size = int(val_split * len(dataset))
-    test_size = len(dataset) - train_size - val_size
-    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, val_size, test_size])
+# Подготовка данных
+def prepare_datasets(data_dir):
+    # Загружаем данные из поддиректорий train и val
+    train_dir = os.path.join(data_dir, 'train')
+    val_dir = os.path.join(data_dir, 'val')
     
-    # Устанавливаем соответствующие преобразования для валидационной и тестовой выборок
-    val_dataset.dataset.transform = data_transforms['val']
-    test_dataset.dataset.transform = data_transforms['val']
+    train_dataset = datasets.ImageFolder(train_dir, transform=data_transforms['train'])
+    val_dataset = datasets.ImageFolder(val_dir, transform=data_transforms['val'])
     
-    return train_dataset, val_dataset, test_dataset
+    return train_dataset, val_dataset
 
-train_dataset, val_dataset, test_dataset = prepare_datasets(second_data_dir)
+# Загрузка данных
+train_dataset, val_dataset = prepare_datasets(second_data_dir)
+
+# Создаем DataLoader для работы с данными
 dataloaders = {
-    'train': DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4),
-    'val': DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4),
-    'test': DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    'train': DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2),
+    'val': DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2),
 }
-dataset_sizes = {'train': len(train_dataset), 'val': len(val_dataset), 'test': len(test_dataset)}
-class_names = train_dataset.dataset.classes
-class_num = len(class_names)
+
+# Основные параметры данных
+dataset_sizes = {'train': len(train_dataset), 'val': len(val_dataset)}
+class_names = train_dataset.classes  # Названия классов
+class_num = len(class_names)  # Количество классов
+
+# Вывод информации
+print(f"Классы: {class_names}")
+print(f"Размеры датасетов: {dataset_sizes}")
+
+

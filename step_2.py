@@ -12,21 +12,25 @@ import os
 import copy
 import time
 import gc
-
+from google.colab import drive
+import wandb
 from fordata2 import *
+from step_1 import EnsembleModel, device 
 
-# Загрузка предварительно обученной модели
+###  wandb.init(project="my-awesome-project", settings=wandb.Settings(init_timeout=300))###
+learning_rate_decay_factor = 0.2
+#Загрузка предварительно обученной модели
 model_ft = EnsembleModel(class_num)
 checkpoint_path = '/content/drive/MyDrive/Results/best_ensemble_model.ckpt'
 model_ft.load_state_dict(torch.load(checkpoint_path))
 model_ft = model_ft.to(device)
 
-# Настройка функции потерь и оптимизатора
+#Настройка функции потерь и оптимизатора
 criterion = nn.CrossEntropyLoss()
 optimizer_ft = optim.Adam(model_ft.parameters(), lr=learning_rate)
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=10, gamma=0.1)
 
-# Обучение модели на втором наборе данных с подсчетом метрик
+exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', factor=learning_rate_decay_factor, patience=10)
+#Обучение модели на втором наборе данных с подсчетом метрик
 def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -74,7 +78,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs):
             else:
                 val_losses.append(epoch_loss)
 
-            # Вычисление метрик
+            #Вычисление метрик
             epoch_acc = accuracy_score(all_labels, all_preds)
             epoch_precision = precision_score(all_labels, all_preds, average='weighted')
             epoch_recall = recall_score(all_labels, all_preds, average='weighted')
@@ -89,12 +93,37 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs):
             print('{} Loss: {:.4f} Acc: {:.4f} Prec: {:.4f} Recall: {:.4f} F1: {:.4f} AUC: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc, epoch_precision, epoch_recall, epoch_f1, epoch_auc))
 
-            # Сохранение лучшей модели
+            #Сохранение лучшей модели
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-
-        # Очистка кеша
+                #Сохранение чекпоинта
+        checkpoint_path = os.path.join(fine_tuned_result_dir, f'checkpoint_epoch_{epoch+1}.ckpt')
+        torch.save(model.state_dict(), checkpoint_path)
+        print(f"Checkpoint saved at {checkpoint_path}")
+        torch.cuda.empty_cache()
+        gc.collect()
+    #         if phase == 'train':
+    #             wandb.log({
+    #     "Train Loss": epoch_loss,
+    #     "Train Accuracy": epoch_acc,
+    #     "Train Precision": epoch_precision,
+    #     "Train Recall": epoch_recall,
+    #     "Train F1": epoch_f1,
+    #     "Train AUC": epoch_auc,
+    #     "Epoch": epoch
+    # })
+    #         else:
+    #             wandb.log({
+    #     "Val Loss": epoch_loss,
+    #     "Val Accuracy": epoch_acc,
+    #     "Val Precision": epoch_precision,
+    #     "Val Recall": epoch_recall,
+    #     "Val F1": epoch_f1,
+    #     "Val AUC": epoch_auc,
+    #     "Epoch": epoch
+    # })
+        #Очистка кеша
         torch.cuda.empty_cache()
         gc.collect()
 
@@ -104,7 +133,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs):
 
     model.load_state_dict(best_model_wts)
 
-    # Построение графиков потерь и точности
+    #Построение графиков потерь и точности
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(train_losses, label='Train Loss')
@@ -126,9 +155,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs):
 
     return model
 
-# Запуск fine-tuning
+#Запуск fine-tuning
 fine_tuned_model = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=num_epochs)
 
-# Сохранение fine-tuned модели
+#Сохранение fine-tuned модели
 os.makedirs(fine_tuned_result_dir, exist_ok=True)
 torch.save(fine_tuned_model.state_dict(), os.path.join(fine_tuned_result_dir, 'ensemble_model_2.ckpt'))
+# wandb.finish()
