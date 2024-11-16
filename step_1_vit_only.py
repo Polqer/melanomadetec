@@ -216,3 +216,4 @@ model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_
 #Сохранение лучшей модели
 result_dir_s = os.path.join(result_dir, 'best_vit_model.ckpt')
 torch.save(model_ft.state_dict(), result_dir_s)
+# wandb.finish()

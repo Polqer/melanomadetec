@@ -14,6 +14,7 @@ from sklearn.metrics import recall_score, f1_score, precision_score, accuracy_sc
 from PIL import ImageFile
 from google.colab import drive
 import gc
+import wandb
 from sklearn.preprocessing import label_binarize
 from fordata1 import *
 ###  wandb.init(project="my-awesome-project", settings=wandb.Settings(init_timeout=300))###
@@ -217,3 +218,4 @@ model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_
 # Сохранение лучшей модели
 result_dir_s = os.path.join(result_dir, 'best_ensemble_model.ckpt')
 torch.save(model_ft.state_dict(), result_dir_s)
+# wandb.finish()
