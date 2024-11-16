@@ -19,43 +19,40 @@ from fordata1 import *
 ###  wandb.init(project="my-awesome-project", settings=wandb.Settings(init_timeout=300))###
 
 
-# Создаем ансамблевую модель, ResNet152 + ViT
-class EnsembleModel(nn.Module):
+
+
+
+
+
+
+#Модель на основе ResNet152
+# Модель на основе Vision Transformer (ViT)
+class ViTModel(nn.Module):
     def __init__(self, class_num):
-        super(EnsembleModel, self).__init__()
-        # ResNet152
-        self.resnet = models.resnet152()  # Используем ResNet152
-        num_ftrs_resnet = self.resnet.fc.in_features
-        self.resnet.fc = nn.Identity()  # - последний слой, чтобы использовать его выходы
+        super(ViTModel, self).__init__()
         # ViT
-        self.vit = models.vit_b_16()
-        num_ftrs_vit = self.vit.heads.head.in_features
-        self.vit.heads.head = nn.Identity()  # аналогично
-        # Общий классификационный слой для объединенных признаков
-        self.classifier = nn.Linear(num_ftrs_resnet + num_ftrs_vit, class_num)
+        self.vit = models.vit_b_16(pretrained=True)
+        num_ftrs = self.vit.heads.head.in_features
+        self.vit.heads.head = nn.Linear(num_ftrs, class_num)  # Заменяем последний слой
 
     def forward(self, x):
-        # Прямой проход через ResNet и ViT
-        resnet_out = self.resnet(x)
-        vit_out = self.vit(x)
-        # Сцепление выходов
-        combined = torch.cat((resnet_out, vit_out), dim=1)
-        # Итог предсказание
-        out = self.classifier(combined)
+        # Прямой проход через ViT
+        out = self.vit(x)
         return out
 
-# Экземпляр ансамблевой модели
-model_ft = EnsembleModel(class_num).to(device)
+
+#только реснет
+model_ft = ViTModel(class_num).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer_ft = torch.optim.SGD(model_ft.parameters(), lr=init_learning_rate)
-# поменяла ReduceLROnPlateau
+
 exp_lr_scheduler = lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', factor=learning_rate_decay_factor, patience=10)
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
     since = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
-    # Хранение истории обучения
+    
     train_losses, val_losses = [], []
     train_accuracies, val_accuracies = [], []
     for epoch in range(num_epochs):
@@ -72,11 +69,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
             running_loss = 0.0
             running_corrects = 0
 
-            # Массивы для подсчета метрик по классам
+            
             all_labels = []
             all_preds = []
 
-            # Обработка данных
+          
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
@@ -97,11 +94,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
                 all_labels.extend(labels.cpu().numpy())
                 all_preds.extend(preds.cpu().numpy())
 
-        # Расчет метрик для эпохи
+      
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects.double() / dataset_sizes[phase]
 
-        # Сохранение значений потерь и точности для графиков
             if phase == 'train':
                 train_losses.append(epoch_loss)
                 train_accuracies.append(epoch_acc)
@@ -118,12 +114,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
             #     specificity = (cm.sum() - cm.sum(axis=0) - cm.sum(axis=1) + cm.diagonal()) / (cm.sum() - cm.sum(axis=1))
             #     print('Sensitivity:', sensitivity)
             #     print('Specificity:', specificity)
-            # Проверяем валидные строки и столбцы перед расчетами
+        
+        
             if phase == 'val':
               cm = confusion_matrix(all_labels, all_preds)
               sensitivity = []
               specificity = []
-              num_classes = cm.shape[0]  # Число классов
+              num_classes = cm.shape[0]  
 
               for i in range(num_classes):
                   TP = cm[i, i]
@@ -131,11 +128,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
                   FP = cm[:, i].sum() - TP
                   TN = cm.sum() - (TP + FN + FP)
 
-    # Чувствительность (Sensitivity)
+    #Чувствительность 
                   sensitivity_class = TP / (TP + FN) if (TP + FN) > 0 else 0
                   sensitivity.append(sensitivity_class)
 
-    # Специфичность (Specificity)
+    #Специфичность 
                   specificity_class = TN / (TN + FP) if (TN + FP) > 0 else 0
                   specificity.append(specificity_class)
               print("\nMetrics per class:")
@@ -144,22 +141,24 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
                   print(f"  Sensitivity: {sensitivity[i]:.4f}")
                   print(f"  Specificity: {specificity[i]:.4f}")
 
-# Расчет чувствительности (Recall) и F1-меры для каждого класса
+#Расчет чувствительности  и F1-меры для каждого класса
             if phase == 'val':
               recall = recall_score(all_labels, all_preds, average='macro', zero_division=1)
               f1 = f1_score(all_labels, all_preds, average='macro', zero_division=1)
               print(f'Recall: {recall:.4f}')
               print(f'F1-score: {f1:.4f}')
-                # Сохранение модели с лучшей точностью
+                #Сохранение модели с лучшей точностью
             if epoch_acc > best_acc:
                     best_acc = epoch_acc
                     best_model_wts = copy.deepcopy(model.state_dict())
-# Сохранение чекпоинта после каждой эпохи
+#Сохранение чекпоинта
         checkpoint_path = os.path.join(result_dir, f'checkpoint_epoch_{epoch+1}.ckpt')
         torch.save(model.state_dict(), checkpoint_path)
         print(f"Checkpoint saved at {checkpoint_path}")
         torch.cuda.empty_cache()
         gc.collect()
+        
+        # тот самый wandb, который не хочет работать
     #         if phase == 'train':
     #             wandb.log({
     #     "Train Loss": epoch_loss,
@@ -182,13 +181,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
     # })
     
     
-    # Время обучения
+    #время обучения
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
     model.load_state_dict(best_model_wts)
-    # Построение графиков
+    #построение графиков
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(train_losses, label='Train Loss')
@@ -211,9 +210,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
 
     return model
 
-# Запуск обучения
+#запуск обучения
 model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=num_epoch)
 
-# Сохранение лучшей модели
-result_dir_s = os.path.join(result_dir, 'best_ensemble_model.ckpt')
+#Сохранение лучшей модели
+result_dir_s = os.path.join(result_dir, 'best_vit_model.ckpt')
 torch.save(model_ft.state_dict(), result_dir_s)
