@@ -17,7 +17,7 @@ import gc
 import wandb
 from sklearn.preprocessing import label_binarize
 from fordata1 import *
-###  wandb.init(project="my-awesome-project", settings=wandb.Settings(init_timeout=300))###
+wandb.init(project="my-awesome-project", settings=wandb.Settings(init_timeout=300))
 
 
 # Создаем ансамблевую модель, ResNet152 + ViT
@@ -151,6 +151,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
               f1 = f1_score(all_labels, all_preds, average='macro', zero_division=1)
               print(f'Recall: {recall:.4f}')
               print(f'F1-score: {f1:.4f}')
+              wandb.log({
+        "Val Loss": epoch_loss,
+        "Val F1": f1,
+        "Val AUC": recall,
+        "Epoch": epoch})
+              
                 # Сохранение модели с лучшей точностью
             if epoch_acc > best_acc:
                     best_acc = epoch_acc
@@ -161,26 +167,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch):
         print(f"Checkpoint saved at {checkpoint_path}")
         torch.cuda.empty_cache()
         gc.collect()
-    #         if phase == 'train':
-    #             wandb.log({
-    #     "Train Loss": epoch_loss,
-    #     "Train Accuracy": epoch_acc,
-    #     "Train Precision": epoch_precision,
-    #     "Train Recall": epoch_recall,
-    #     "Train F1": epoch_f1,
-    #     "Train AUC": epoch_auc,
-    #     "Epoch": epoch
-    # })
-    #         else:
-    #             wandb.log({
-    #     "Val Loss": epoch_loss,
-    #     "Val Accuracy": epoch_acc,
-    #     "Val Precision": epoch_precision,
-    #     "Val Recall": epoch_recall,
-    #     "Val F1": epoch_f1,
-    #     "Val AUC": epoch_auc,
-    #     "Epoch": epoch
-    # })
     
     
     # Время обучения
