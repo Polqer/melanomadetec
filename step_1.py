@@ -143,7 +143,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=num_epoch, st
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 #сохраняем вероятности для ROC-AUC
-                    probabilities = torch.softmax(outputs, dim=1).tensor.detach().numpy()
+                    probabilities = torch.softmax(outputs, dim=1).detach().cpu().numpy()
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
